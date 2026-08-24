@@ -1,0 +1,20 @@
+# ESP-PredictiveMesh - Stage 1 sdkconfig defaults
+#
+# Minimal overrides for an ESP-NOW point-to-point test:
+# - Default single-app partition table is sufficient.
+# - Static/Dynamic allocation buffers left at IDF defaults (no extra heap needed).
+# - Keep Wi-Fi country code permissive for international 2.4 GHz use.
+# - Disable power save so ESP-NOW transmissions are not delayed.
+
+# Use the default partition table shipped with ESP-IDF (single app).
+# (No custom partition overrides required for Stage 1.)
+
+# Allow operation on channels 1-13 without a real AP connection
+CONFIG_WIFI_COUNTRY_CODE="01"
+
+# Disable modem sleep to keep ESP-NOW packet timing consistent.
+# (Stage 1 uses a 1 Hz send cadence; power save is irrelevant here.)
+# ESP-NOW itself does not require disabling power save, but we leave it
+# off for predictable Stage 1 behaviour. Revisit in later stages.
+
+# Default to the IDF-default Wi-Fi country policy (auto).
