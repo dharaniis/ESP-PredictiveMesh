@@ -143,9 +143,12 @@ static void discovery_task(void *arg)
         memcpy(tag.dest_mac, s_broadcast_mac, ESP_NOW_ETH_ALEN);
         espnow_manager_send(s_broadcast_mac, &hello, &tag);
 
-        // 2. Age neighbor table.
         int64_t now = esp_timer_get_time();
-        neighbor_expire(now, STALE_THRESHOLD_MS * 1000, DEAD_THRESHOLD_MS * 1000);
+        uint8_t expired_macs[MAX_NEIGHBORS][ESP_NOW_ETH_ALEN];
+        int num_expired = neighbor_expire(now, STALE_THRESHOLD_MS * 1000, DEAD_THRESHOLD_MS * 1000, expired_macs, MAX_NEIGHBORS);
+        for (int i = 0; i < num_expired; i++) {
+            espnow_manager_remove_peer(expired_macs[i]);
+        }
 
         // 3. Print table periodically.
         neighbor_print_table();

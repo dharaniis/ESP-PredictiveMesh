@@ -69,22 +69,26 @@ neighbor_t *neighbor_update_observation(const uint8_t *mac,
     return n;
 }
 
-int neighbor_expire(int64_t now_us, int64_t stale_us, int64_t dead_us)
+int neighbor_expire(int64_t now_us, int64_t stale_us, int64_t dead_us,
+                    uint8_t removed_macs[][ESP_NOW_ETH_ALEN], int max_removed)
 {
-    int removed = 0;
+    int removed_count = 0;
     for (int i = 0; i < MAX_NEIGHBORS; i++) {
         if (s_table[i].state == NEIGHBOR_EMPTY) continue;
         int64_t age = now_us - s_table[i].last_seen_us;
         if (age >= dead_us) {
-            ESP_LOGI(TAG, "Neighbor removed: " MACSTR, MAC2STR(s_table[i].mac));
+            if (removed_count < max_removed) {
+                memcpy(removed_macs[removed_count], s_table[i].mac, ESP_NOW_ETH_ALEN);
+            }
+            ESP_LOGI(TAG, "Neighbor expired: " MACSTR, MAC2STR(s_table[i].mac));
             memset(&s_table[i], 0, sizeof(neighbor_t));
-            removed++;
+            removed_count++;
         } else if (age >= stale_us && s_table[i].state == NEIGHBOR_ACTIVE) {
             s_table[i].state = NEIGHBOR_STALE;
             ESP_LOGW(TAG, "Neighbor stale: " MACSTR, MAC2STR(s_table[i].mac));
         }
     }
-    return removed;
+    return removed_count;
 }
 
 int neighbor_count(void)

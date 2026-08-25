@@ -40,7 +40,8 @@ neighbor_t *neighbor_update_observation(const uint8_t *mac,
 
 // Age entries. STALE after stale_us since last_seen, REMOVED (slot freed)
 // after dead_us. Returns number of entries that transitioned to REMOVED.
-int neighbor_expire(int64_t now_us, int64_t stale_us, int64_t dead_us);
+int neighbor_expire(int64_t now_us, int64_t stale_us, int64_t dead_us,
+                    uint8_t removed_macs[][ESP_NOW_ETH_ALEN], int max_removed);
 
 // Number of active+stale entries currently held.
 int neighbor_count(void);
