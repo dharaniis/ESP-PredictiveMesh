@@ -4,15 +4,15 @@
 
 #include "discovery.h"
 #include "espnow_manager.h"
+#include "forwarding.h"
 #include "neighbor_manager.h"
 #include "packets.h"
 #include "esp_log.h"
 
 // These handlers are called by the dispatcher.
-// They are defined in discovery.c and neighbor_manager.c.
+// They are defined in discovery.c.
 void handle_hello_packet(const espnow_evt_recv_t *evt);
 void handle_hello_ack_packet(const espnow_evt_recv_t *evt);
-void handle_data_packet(const espnow_evt_recv_t *evt);
 
 static void espnow_dispatch_task(void *pvParameter)
 {
@@ -45,7 +45,7 @@ static void espnow_dispatch_task(void *pvParameter)
                 handle_hello_ack_packet(&evt.u.recv);
                 break;
             case ESPNOW_PKT_DATA:
-                handle_data_packet(&evt.u.recv);
+                forwarding_handle_data(&evt.u.recv);
                 break;
             default:
                 ESP_LOGW("MAIN", "Received unknown packet type %u",
@@ -65,11 +65,19 @@ void app_main(void)
 {
     espnow_manager_init();
     neighbor_manager_init();
+
+    /* Stage 3 startup banner with role/MAC validation */
+    bool role_valid = forwarding_validate_role();
+
     discovery_start();
-    espnow_manager_log_local_mac();
 
     xTaskCreate(espnow_dispatch_task, "espnow_dispatch",
                 4096, NULL, 3, NULL);
+
+    /* Start DATA generator only if role/MAC is valid (NODE_A only) */
+    if (role_valid) {
+        forwarding_start();
+    }
 
     ESP_LOGI("MAIN", "Node initialized. Discovery active.");
 }

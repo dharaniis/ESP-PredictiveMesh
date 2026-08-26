@@ -161,14 +161,3 @@ void discovery_start(void)
 {
     xTaskCreate(discovery_task, "discovery", 4096, NULL, 3, NULL);
 }
-void handle_data_packet(const espnow_evt_recv_t *evt)
-{
-    const espnow_packet_t *pkt = &evt->packet;
-    if (pkt->header.type != ESPNOW_PKT_DATA) return;
-
-    ESP_LOGI(TAG, "Received DATA packet #%" PRIu32 " from " MACSTR,
-             pkt->u.data.sequence, MAC2STR(evt->src_mac));
-    ESP_LOGI(TAG, "Payload: %.*s",
-             (int)sizeof(pkt->u.data.payload),
-             pkt->u.data.payload);
-}

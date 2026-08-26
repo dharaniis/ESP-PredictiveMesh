@@ -16,5 +16,4 @@ void discovery_start(void);
 
 void handle_hello_packet(const espnow_evt_recv_t *evt);
 void handle_hello_ack_packet(const espnow_evt_recv_t *evt);
-void handle_data_packet(const espnow_evt_recv_t *evt);
 #endif // DISCOVERY_H

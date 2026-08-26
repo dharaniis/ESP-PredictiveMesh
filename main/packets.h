@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include "esp_now.h"
 
-#define ESPNOW_PROTOCOL_VERSION 1
+#define ESPNOW_PROTOCOL_VERSION 2
 
 typedef enum {
     ESPNOW_PKT_DATA      = 1,
@@ -25,10 +25,12 @@ typedef struct __attribute__((packed)) {
 
 _Static_assert(sizeof(espnow_header_t) == 4, "header must be 4 bytes");
 
-// Stage 1 DATA payload (carried after the header).
+// Stage 3 DATA payload: multi-hop forwarding.
 typedef struct __attribute__((packed)) {
+    uint8_t  source_mac[ESP_NOW_ETH_ALEN];       // original source
+    uint8_t  destination_mac[ESP_NOW_ETH_ALEN];   // final destination
     uint32_t sequence;
-    int64_t  timestamp_us;
+    uint8_t  hop_count;
     char     payload[32];
 } data_payload_t;
 
