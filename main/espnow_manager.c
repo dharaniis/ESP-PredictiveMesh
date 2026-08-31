@@ -1,8 +1,8 @@
 #include "espnow_manager.h"
+#include "node_config.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_mac.h"
-#include "esp_netif.h"
 #include "esp_wifi.h"
 #include "esp_wifi_default.h"
 #include "freertos/FreeRTOS.h"
@@ -73,6 +73,10 @@ static void wifi_init_sta_on_channel(uint8_t channel)
 
     ESP_ERROR_CHECK(esp_wifi_start());
     ESP_ERROR_CHECK(esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE));
+#ifdef NODE_TX_POWER
+    ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(NODE_TX_POWER));
+    ESP_LOGI(TAG, "Wi-Fi Max TX Power set to %d (%.2f dBm)", NODE_TX_POWER, NODE_TX_POWER * 0.25);
+#endif
 
     uint8_t primary = 0;
     wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;

@@ -1,21 +1,21 @@
 /*
- * forwarding.c — Stage 3 multi-hop DATA forwarding.
+ * forwarding.c — Stage 4 Dynamic multi-hop DATA forwarding.
  *
  * Handles DATA packets from the dispatcher:
  *   1. Duplicate detection (source_mac + sequence)
  *   2. Destination check (local delivery vs forward)
  *   3. Hop-count enforcement
- *   4. Static next-hop lookup
- *   5. Active-neighbor validation via neighbor_manager
+ *   4. Dynamic routing lookup via topology / BFS routing table
+ *   5. Active-neighbor and RSSI-threshold validation via neighbor_manager
  *   6. Transmission via espnow_manager
  *
- * NODE_A runs a periodic DATA generator task.
- * NODE_B/C do not generate DATA.
+ * NODE_A runs a periodic DATA generator task targeting NODE_C.
  */
 
 #include "forwarding.h"
 #include "node_config.h"
 #include "neighbor_manager.h"
+#include "topology.h"
 #include "packets.h"
 
 #include "esp_log.h"
@@ -79,61 +79,74 @@ static const uint8_t *get_local_mac(void)
 }
 
 /* ================================================================
- * Static forwarding configuration
+ * Forward a DATA packet to the next hop via dynamic routing table
  * ================================================================ */
-
-#if NODE_ROLE_A || NODE_ROLE_B
-static const uint8_t s_forward_next_hop[] = FORWARD_NEXT_HOP;
-#endif
-
-/* ================================================================
- * Forward a DATA packet to the next hop
- * ================================================================ */
-static void forward_data(espnow_packet_t *pkt)
+static void forward_data(espnow_packet_t *pkt, const uint8_t *recv_from_mac)
 {
-#if NODE_ROLE_C
-    /* NODE_C is the final destination — should never call forward_data.
-     * If somehow reached, log and drop. */
-    ESP_LOGW(TAG, "NODE_C has no next hop; cannot forward");
-    return;
-#else
     data_payload_t *d = &pkt->u.data;
 
     /* Hop-count check */
     if (d->hop_count >= ESPNOW_MAX_HOPS) {
-        ESP_LOGW(TAG, "Maximum hop count exceeded; dropping packet");
+        ESP_LOGW(TAG, "Maximum hop count exceeded (%u); dropping packet", d->hop_count);
         return;
     }
 
-    /* Check that the next hop is an ACTIVE neighbor */
-    neighbor_t *nb = neighbor_find(s_forward_next_hop);
-    if (!nb || nb->state != NEIGHBOR_ACTIVE) {
-        ESP_LOGW(TAG, "Next hop " MACSTR " is not an ACTIVE neighbor",
-                 MAC2STR(s_forward_next_hop));
+    uint8_t next_hop[ESP_NOW_ETH_ALEN];
+    uint8_t route_hops = 0;
+
+    /* Look up route in dynamic routing table */
+    bool has_route = routing_lookup(d->destination_mac, next_hop, &route_hops);
+    if (!has_route) {
+        ESP_LOGW(TAG, "ROUTE:\n"
+                      "  destination unreachable (" MACSTR ")",
+                 MAC2STR(d->destination_mac));
         return;
     }
 
-    /* Ensure ESP-NOW peer is registered */
-    espnow_manager_ensure_peer(s_forward_next_hop);
+    /* Verify next hop is an active accepted neighbor */
+    if (!neighbor_is_accepted(next_hop)) {
+        ESP_LOGW(TAG, "ROUTE:\n"
+                      "  next hop " MACSTR " is not an active/accepted neighbor",
+                 MAC2STR(next_hop));
+        return;
+    }
 
-    /* Increment hop count */
+    /* Ensure ESP-NOW peer is registered for next_hop */
+    espnow_manager_ensure_peer(next_hop);
+
+    uint8_t old_hop = d->hop_count;
     d->hop_count++;
 
-    ESP_LOGI(TAG, "Forwarding DATA");
-    ESP_LOGI(TAG, "  Next hop: " MACSTR, MAC2STR(s_forward_next_hop));
-    ESP_LOGI(TAG, "  New hop count: %u", d->hop_count);
+    ESP_LOGI(TAG, "DATA_RX:\n"
+                  "  received from : " MACSTR "\n"
+                  "  source        : " MACSTR "\n"
+                  "  destination   : " MACSTR "\n"
+                  "  hop_count     : %u",
+             MAC2STR(recv_from_mac), MAC2STR(d->source_mac),
+             MAC2STR(d->destination_mac), old_hop);
+
+    ESP_LOGI(TAG, "DATA_FORWARD:\n"
+                  "  destination   : " MACSTR "\n"
+                  "  next_hop      : " MACSTR "\n"
+                  "  hop_count     : %u -> %u",
+             MAC2STR(d->destination_mac), MAC2STR(next_hop),
+             old_hop, d->hop_count);
+
+    ESP_LOGI(TAG, "DATA_SEND:\n"
+                  "  sending to    : " MACSTR,
+             MAC2STR(next_hop));
 
     espnow_send_tag_t tag = {
         .pkt_type = ESPNOW_PKT_DATA,
         .sequence = d->sequence,
     };
-    memcpy(tag.dest_mac, s_forward_next_hop, ESP_NOW_ETH_ALEN);
+    memcpy(tag.dest_mac, next_hop, ESP_NOW_ETH_ALEN);
 
-    esp_err_t ret = espnow_manager_send(s_forward_next_hop, pkt, &tag);
+    esp_err_t ret = espnow_manager_send(next_hop, pkt, &tag);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to forward DATA: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "Failed to forward DATA to " MACSTR ": %s",
+                 MAC2STR(next_hop), esp_err_to_name(ret));
     }
-#endif
 }
 
 /* ================================================================
@@ -141,7 +154,6 @@ static void forward_data(espnow_packet_t *pkt)
  * ================================================================ */
 void forwarding_handle_data(const espnow_evt_recv_t *evt)
 {
-    /* Work on a mutable copy so forward_data can increment hop_count */
     espnow_packet_t pkt = evt->packet;
     data_payload_t *d = &pkt.u.data;
 
@@ -157,26 +169,25 @@ void forwarding_handle_data(const espnow_evt_recv_t *evt)
 
     const uint8_t *local = get_local_mac();
 
-    ESP_LOGI(TAG, "DATA received");
-    ESP_LOGI(TAG, "  Source: " MACSTR, MAC2STR(d->source_mac));
-    ESP_LOGI(TAG, "  Destination: " MACSTR, MAC2STR(d->destination_mac));
-    ESP_LOGI(TAG, "  Sequence: %" PRIu32, d->sequence);
-    ESP_LOGI(TAG, "  Hop count: %u", d->hop_count);
-
     /* Destination check */
     if (memcmp(d->destination_mac, local, ESP_NOW_ETH_ALEN) == 0) {
         /* Local delivery */
-        ESP_LOGI(TAG, "DATA delivered locally");
-        ESP_LOGI(TAG, "  Source: " MACSTR, MAC2STR(d->source_mac));
-        ESP_LOGI(TAG, "  Destination: " MACSTR, MAC2STR(d->destination_mac));
-        ESP_LOGI(TAG, "  Sequence: %" PRIu32, d->sequence);
-        ESP_LOGI(TAG, "  Hop count: %u", d->hop_count);
-        ESP_LOGI(TAG, "  Payload: %.*s", (int)sizeof(d->payload), d->payload);
+        ESP_LOGI(TAG, "DATA_RX:\n"
+                      "  received from : " MACSTR "\n"
+                      "  source        : " MACSTR "\n"
+                      "  destination   : " MACSTR "\n"
+                      "  hop_count     : %u",
+                 MAC2STR(evt->src_mac), MAC2STR(d->source_mac),
+                 MAC2STR(d->destination_mac), d->hop_count);
+        ESP_LOGI(TAG, "DATA_DELIVER:\n"
+                      "  local destination reached\n"
+                      "  payload       : %.*s",
+                 (int)sizeof(d->payload), d->payload);
         return;
     }
 
     /* Not for us — forward */
-    forward_data(&pkt);
+    forward_data(&pkt, evt->src_mac);
 }
 
 /* ================================================================
@@ -191,16 +202,17 @@ bool forwarding_validate_role(void)
 
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "ESP-NOW PREDICTIVE MESH");
-    ESP_LOGI(TAG, "STAGE 3");
+    ESP_LOGI(TAG, "STAGE 4 — Dynamic Routing");
     ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "Role: %s", NODE_ROLE_NAME);
+    ESP_LOGI(TAG, "Node role: %s", NODE_ROLE_NAME);
     ESP_LOGI(TAG, "Local MAC: " MACSTR, MAC2STR(local));
     ESP_LOGI(TAG, "Expected MAC: " MACSTR, MAC2STR(expected));
     ESP_LOGI(TAG, "Role/MAC: %s", valid ? "VALID" : "*** INVALID ***");
+    ESP_LOGI(TAG, "RSSI threshold: %d dBm", NODE_RSSI_THRESHOLD);
     ESP_LOGI(TAG, "========================================");
 
     if (!valid) {
-        ESP_LOGE(TAG, "ERROR: Role/MAC mismatch! DATA generator will NOT start.");
+        ESP_LOGE(TAG, "ERROR: Role/MAC mismatch!");
     }
 
     return valid;
@@ -217,8 +229,7 @@ static void data_generator_task(void *arg)
     (void)arg;
 
     const uint8_t *local = get_local_mac();
-    const uint8_t dest[] = FORWARD_DESTINATION;
-    const uint8_t next[] = FORWARD_NEXT_HOP;
+    const uint8_t dest[] = TARGET_DATA_DESTINATION;
 
     ESP_LOGI(TAG, "DATA generator started (interval=%d ms)", DATA_GENERATE_INTERVAL_MS);
 
@@ -227,15 +238,27 @@ static void data_generator_task(void *arg)
 
         s_data_sequence++;
 
-        /* Check next hop is ACTIVE before bothering to build the packet */
-        neighbor_t *nb = neighbor_find(next);
-        if (!nb || nb->state != NEIGHBOR_ACTIVE) {
-            ESP_LOGW(TAG, "Next hop " MACSTR " is not an ACTIVE neighbor; skipping DATA #%" PRIu32,
-                     MAC2STR(next), s_data_sequence);
+        uint8_t next_hop[ESP_NOW_ETH_ALEN];
+        uint8_t route_hops = 0;
+
+        /* Dynamic routing lookup for destination */
+        bool has_route = routing_lookup(dest, next_hop, &route_hops);
+        if (!has_route) {
+            ESP_LOGW(TAG, "ROUTE:\n"
+                          "  destination unreachable (" MACSTR ")",
+                     MAC2STR(dest));
             continue;
         }
 
-        espnow_manager_ensure_peer(next);
+        /* Check next hop is active and accepted */
+        if (!neighbor_is_accepted(next_hop)) {
+            ESP_LOGW(TAG, "ROUTE:\n"
+                          "  next hop " MACSTR " is not active/accepted; skipping DATA #%" PRIu32,
+                     MAC2STR(next_hop), s_data_sequence);
+            continue;
+        }
+
+        espnow_manager_ensure_peer(next_hop);
 
         /* Build DATA packet */
         espnow_packet_t pkt;
@@ -249,25 +272,28 @@ static void data_generator_task(void *arg)
         pkt.u.data.sequence  = s_data_sequence;
         pkt.u.data.hop_count = 0;
         snprintf(pkt.u.data.payload, sizeof(pkt.u.data.payload),
-                 "Stage3 test packet #%" PRIu32, s_data_sequence);
+                 "Stage4 DATA packet #%" PRIu32, s_data_sequence);
 
-        /* Mark as seen so we don't process our own packet if it echoes back */
+        /* Mark as seen */
         mark_seen(local, s_data_sequence);
 
-        ESP_LOGI(TAG, "Originating DATA");
-        ESP_LOGI(TAG, "  Source: " MACSTR, MAC2STR(local));
-        ESP_LOGI(TAG, "  Destination: " MACSTR, MAC2STR(dest));
-        ESP_LOGI(TAG, "  Sequence: %" PRIu32, s_data_sequence);
-        ESP_LOGI(TAG, "  Hop count: 0");
-        ESP_LOGI(TAG, "  Next hop: " MACSTR, MAC2STR(next));
+        ESP_LOGI(TAG, "DATA_ROUTE:\n"
+                      "  destination   : " MACSTR "\n"
+                      "  next_hop      : " MACSTR "\n"
+                      "  hop_count     : 0",
+                 MAC2STR(dest), MAC2STR(next_hop));
+
+        ESP_LOGI(TAG, "DATA_SEND:\n"
+                      "  sending to    : " MACSTR,
+                 MAC2STR(next_hop));
 
         espnow_send_tag_t tag = {
             .pkt_type = ESPNOW_PKT_DATA,
             .sequence = s_data_sequence,
         };
-        memcpy(tag.dest_mac, next, ESP_NOW_ETH_ALEN);
+        memcpy(tag.dest_mac, next_hop, ESP_NOW_ETH_ALEN);
 
-        esp_err_t ret = espnow_manager_send(next, &pkt, &tag);
+        esp_err_t ret = espnow_manager_send(next_hop, &pkt, &tag);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to send DATA #%" PRIu32 ": %s",
                      s_data_sequence, esp_err_to_name(ret));

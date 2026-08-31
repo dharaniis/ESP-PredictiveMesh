@@ -1,13 +1,14 @@
 /*
- * node_config.h — Stage 3 node-role and static forwarding configuration.
+ * node_config.h — Stage 4 node-role, RSSI threshold, and dynamic routing configuration.
  *
  * ONE codebase, THREE firmware builds.
  * Enable exactly ONE of the NODE_ROLE_* defines below.
  * Zero or multiple enabled = compile error.
  *
- * USB1 = NODE_A  MAC = 28:05:a5:e2:b0:f4
- * USB2 = NODE_B  MAC = e0:8c:fe:f9:b8:c0
- * USB0 = NODE_C  MAC = 28:05:a5:e2:18:d0
+ * Discovered Hardware Mapping:
+ *   USB2 = NODE_A  MAC = 28:05:a5:e2:b0:f4
+ *   USB1 = NODE_B  MAC = e0:8c:fe:f9:b8:c0
+ *   USB0 = NODE_C  MAC = 28:05:a5:e2:18:d0
  */
 #ifndef NODE_CONFIG_H
 #define NODE_CONFIG_H
@@ -19,9 +20,8 @@
  * NODE ROLE SELECTION — enable exactly ONE
  * ================================================================ */
 // #define NODE_ROLE_A   1
- #define NODE_ROLE_B   1
-// #define NODE_ROLE_C   1
-
+// #define NODE_ROLE_B   1
+#define NODE_ROLE_C   1
 /* ================================================================
  * Compile-time validation: exactly one role must be selected
  * ================================================================ */
@@ -66,21 +66,28 @@
 #endif
 
 /* ================================================================
- * Stage 3 static forwarding configuration
+ * Stage 4 RSSI threshold configuration (Testing / physical topology)
  *
- * NODE_A: destination=C, next_hop=B
- * NODE_B: destination=C, next_hop=C
- * NODE_C: destination=C, local delivery (no next hop needed)
+ * NODE_A: accept neighbor only if RSSI >= -60 dBm
+ * NODE_B: accept neighbor only if RSSI >= -80 dBm
+ * NODE_C: accept neighbor only if RSSI >= -60 dBm
  * ================================================================ */
-#define FORWARD_DESTINATION  MAC_NODE_C
-
+#define RSSI_THRESHOLD_NODE_A  -60
+#define RSSI_THRESHOLD_NODE_B  -80
+#define RSSI_THRESHOLD_NODE_C  -60
 #if NODE_ROLE_A
-#define FORWARD_NEXT_HOP     MAC_NODE_B
+#define NODE_RSSI_THRESHOLD  RSSI_THRESHOLD_NODE_A
 #elif NODE_ROLE_B
-#define FORWARD_NEXT_HOP     MAC_NODE_C
+#define NODE_RSSI_THRESHOLD  RSSI_THRESHOLD_NODE_B
+#elif NODE_ROLE_C
+#define NODE_RSSI_THRESHOLD  RSSI_THRESHOLD_NODE_C
 #endif
-/* NODE_C delivers locally — no FORWARD_NEXT_HOP defined */
 
+#if NODE_ROLE_C
+#define NODE_TX_POWER 8
+#endif
+/* Target destination for DATA generator */
+#define TARGET_DATA_DESTINATION  MAC_NODE_C
 /* Maximum hop count (loop protection, NOT routing) */
 #define ESPNOW_MAX_HOPS  8
 

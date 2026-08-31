@@ -15,6 +15,7 @@ typedef enum {
     ESPNOW_PKT_DATA      = 1,
     ESPNOW_PKT_HELLO     = 2,
     ESPNOW_PKT_HELLO_ACK = 3,
+    ESPNOW_PKT_TOPOLOGY  = 4,
 } espnow_packet_type_t;
 
 typedef struct __attribute__((packed)) {
@@ -48,12 +49,23 @@ typedef struct __attribute__((packed)) {
     uint32_t hello_sequence;
 } hello_ack_payload_t;
 
+#define MAX_TOPOLOGY_NEIGHBORS 8
+
+// TOPOLOGY: topology advertisement broadcast containing list of accepted neighbors.
+typedef struct __attribute__((packed)) {
+    uint8_t  sender_mac[ESP_NOW_ETH_ALEN];
+    uint32_t sequence;
+    uint8_t  neighbor_count;
+    uint8_t  neighbors[MAX_TOPOLOGY_NEIGHBORS][ESP_NOW_ETH_ALEN];
+} topology_payload_t;
+
 typedef struct __attribute__((packed)) {
     espnow_header_t header;
     union {
         data_payload_t      data;
         hello_payload_t     hello;
         hello_ack_payload_t hello_ack;
+        topology_payload_t  topology;
     } u;
 } espnow_packet_t;
 

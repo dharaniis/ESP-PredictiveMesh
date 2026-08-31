@@ -2,7 +2,7 @@
 
 #include "discovery.h"
 #include "neighbor_manager.h"
-
+#include "topology.h"
 #include "espnow_manager.h"
 
 #include "packets.h"
@@ -148,6 +148,9 @@ static void discovery_task(void *arg)
         int num_expired = neighbor_expire(now, STALE_THRESHOLD_MS * 1000, DEAD_THRESHOLD_MS * 1000, expired_macs, MAX_NEIGHBORS);
         for (int i = 0; i < num_expired; i++) {
             espnow_manager_remove_peer(expired_macs[i]);
+        }
+        if (num_expired > 0) {
+            topology_recalculate_routes();
         }
 
         // 3. Print table periodically.

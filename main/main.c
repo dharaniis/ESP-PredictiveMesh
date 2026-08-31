@@ -6,6 +6,7 @@
 #include "espnow_manager.h"
 #include "forwarding.h"
 #include "neighbor_manager.h"
+#include "topology.h"
 #include "packets.h"
 #include "esp_log.h"
 
@@ -44,6 +45,9 @@ static void espnow_dispatch_task(void *pvParameter)
             case ESPNOW_PKT_HELLO_ACK:
                 handle_hello_ack_packet(&evt.u.recv);
                 break;
+            case ESPNOW_PKT_TOPOLOGY:
+                topology_handle_packet(&evt.u.recv);
+                break;
             case ESPNOW_PKT_DATA:
                 forwarding_handle_data(&evt.u.recv);
                 break;
@@ -65,11 +69,13 @@ void app_main(void)
 {
     espnow_manager_init();
     neighbor_manager_init();
+    topology_init();
 
-    /* Stage 3 startup banner with role/MAC validation */
+    /* Stage 4 startup banner with role/MAC validation */
     bool role_valid = forwarding_validate_role();
 
     discovery_start();
+    topology_start();
 
     xTaskCreate(espnow_dispatch_task, "espnow_dispatch",
                 4096, NULL, 3, NULL);
@@ -79,5 +85,5 @@ void app_main(void)
         forwarding_start();
     }
 
-    ESP_LOGI("MAIN", "Node initialized. Discovery active.");
+    ESP_LOGI("MAIN", "Node initialized. Stage 4 dynamic routing active.");
 }

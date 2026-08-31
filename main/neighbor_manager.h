@@ -20,6 +20,7 @@ typedef struct {
     uint32_t hello_sequence;
     int64_t  last_seen_us;
     neighbor_state_t state;
+    bool     is_accepted;
 } neighbor_t;
 
 void neighbor_manager_init(void);
@@ -44,6 +45,12 @@ int neighbor_expire(int64_t now_us, int64_t stale_us, int64_t dead_us,
                     uint8_t removed_macs[][ESP_NOW_ETH_ALEN], int max_removed);
 
 // Number of active+stale entries currently held.
+
+// Get list of active neighbors whose RSSI satisfies the configured threshold.
+int neighbor_get_accepted_macs(uint8_t macs[][ESP_NOW_ETH_ALEN], int max_macs);
+
+// Check if a neighbor is active and accepted.
+bool neighbor_is_accepted(const uint8_t *mac);
 int neighbor_count(void);
 
 // Pretty-print the table.
