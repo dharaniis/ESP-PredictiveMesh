@@ -1,6 +1,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "metrics.h"
 
 #include "discovery.h"
 #include "espnow_manager.h"
@@ -10,6 +11,8 @@
 #include "packets.h"
 #include "esp_log.h"
 
+extern void handle_metric_probe_packet(const espnow_evt_recv_t *evt);
+extern void handle_metric_ack_packet(const espnow_evt_recv_t *evt);
 // These handlers are called by the dispatcher.
 // They are defined in discovery.c.
 void handle_hello_packet(const espnow_evt_recv_t *evt);
@@ -44,6 +47,12 @@ static void espnow_dispatch_task(void *pvParameter)
                 break;
             case ESPNOW_PKT_HELLO_ACK:
                 handle_hello_ack_packet(&evt.u.recv);
+                break;
+            case ESPNOW_PKT_METRIC_PROBE:
+                handle_metric_probe_packet(&evt.u.recv);
+                break;
+            case ESPNOW_PKT_METRIC_ACK:
+                handle_metric_ack_packet(&evt.u.recv);
                 break;
             case ESPNOW_PKT_TOPOLOGY:
                 topology_handle_packet(&evt.u.recv);

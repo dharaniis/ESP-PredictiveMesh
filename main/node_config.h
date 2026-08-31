@@ -6,9 +6,9 @@
  * Zero or multiple enabled = compile error.
  *
  * Discovered Hardware Mapping:
- *   USB2 = NODE_A  MAC = 28:05:a5:e2:b0:f4
- *   USB1 = NODE_B  MAC = e0:8c:fe:f9:b8:c0
- *   USB0 = NODE_C  MAC = 28:05:a5:e2:18:d0
+ *   USB0 = NODE_A  MAC = 28:05:a5:e2:b0:f4
+ *   USB1 = NODE_C  MAC = 28:05:a5:e2:18:d0
+ *   USB2 = NODE_B  MAC = e0:8c:fe:f9:b8:c0
  */
 #ifndef NODE_CONFIG_H
 #define NODE_CONFIG_H
@@ -19,9 +19,9 @@
 /* ================================================================
  * NODE ROLE SELECTION — enable exactly ONE
  * ================================================================ */
-// #define NODE_ROLE_A   1
+ #define NODE_ROLE_A   1
 // #define NODE_ROLE_B   1
-#define NODE_ROLE_C   1
+// #define NODE_ROLE_C   1
 /* ================================================================
  * Compile-time validation: exactly one role must be selected
  * ================================================================ */
@@ -93,5 +93,11 @@
 
 /* DATA generator interval (NODE_A only) */
 #define DATA_GENERATE_INTERVAL_MS  2000
+
+/* METRIC_PROBE_INTERVAL_MS = 1000 */
+#define METRIC_PROBE_INTERVAL_MS 1000
+
+/* METRICS_WINDOW_MS = 5000 */
+#define METRICS_WINDOW_MS 5000
 
 #endif /* NODE_CONFIG_H */

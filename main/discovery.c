@@ -1,6 +1,7 @@
 #include "esp_mac.h"
 
 #include "discovery.h"
+#include "metrics.h"
 #include "neighbor_manager.h"
 #include "topology.h"
 #include "espnow_manager.h"
@@ -155,6 +156,8 @@ static void discovery_task(void *arg)
 
         // 3. Print table periodically.
         neighbor_print_table();
+        metrics_update();
+        metrics_print_table();
 
         vTaskDelay(pdMS_TO_TICKS(DISCOVERY_INTERVAL_MS));
     }

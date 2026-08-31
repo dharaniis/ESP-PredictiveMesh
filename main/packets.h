@@ -15,7 +15,9 @@ typedef enum {
     ESPNOW_PKT_DATA      = 1,
     ESPNOW_PKT_HELLO     = 2,
     ESPNOW_PKT_HELLO_ACK = 3,
-    ESPNOW_PKT_TOPOLOGY  = 4,
+    ESPNOW_PKT_TOPOLOGY     = 4,
+    ESPNOW_PKT_METRIC_PROBE = 5,
+    ESPNOW_PKT_METRIC_ACK   = 6,
 } espnow_packet_type_t;
 
 typedef struct __attribute__((packed)) {
@@ -34,6 +36,20 @@ typedef struct __attribute__((packed)) {
     uint8_t  hop_count;
     char     payload[32];
 } data_payload_t;
+
+// METRIC_PROBE: unicast to neighbor
+typedef struct __attribute__((packed)) {
+    uint8_t  source_mac[ESP_NOW_ETH_ALEN];
+    uint8_t  destination_mac[ESP_NOW_ETH_ALEN];
+    uint32_t sequence;
+} metric_probe_payload_t;
+
+// METRIC_ACK: unicast back to probe sender
+typedef struct __attribute__((packed)) {
+    uint8_t  source_mac[ESP_NOW_ETH_ALEN];
+    uint8_t  destination_mac[ESP_NOW_ETH_ALEN];
+    uint32_t metric_sequence;
+} metric_ack_payload_t;
 
 // HELLO: broadcast. source_mac is the sender's Wi-Fi STA MAC.
 typedef struct __attribute__((packed)) {
@@ -63,6 +79,8 @@ typedef struct __attribute__((packed)) {
     espnow_header_t header;
     union {
         data_payload_t      data;
+        metric_probe_payload_t metric_probe;
+        metric_ack_payload_t   metric_ack;
         hello_payload_t     hello;
         hello_ack_payload_t hello_ack;
         topology_payload_t  topology;
