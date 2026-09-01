@@ -19,8 +19,8 @@
 /* ================================================================
  * NODE ROLE SELECTION — enable exactly ONE
  * ================================================================ */
- #define NODE_ROLE_A   1
-// #define NODE_ROLE_B   1
+// #define NODE_ROLE_A   1
+#define NODE_ROLE_B   1
 // #define NODE_ROLE_C   1
 /* ================================================================
  * Compile-time validation: exactly one role must be selected
