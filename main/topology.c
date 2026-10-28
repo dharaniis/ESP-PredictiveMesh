@@ -45,25 +45,7 @@ void topology_init(void)
 
 void routing_print_table(void)
 {
-    if (!s_routing_mutex) return;
-    xSemaphoreTake(s_routing_mutex, portMAX_DELAY);
-    printf("\n========================================\n");
-    printf("ROUTING TABLE\n");
-    printf("========================================\n");
-    printf("%-24s %-24s %-6s\n", "Destination", "Next Hop", "Hops");
-    if (s_route_count == 0) {
-        printf("(empty - no valid routes)\n");
-    } else {
-        for (int i = 0; i < s_route_count; i++) {
-            char dest_str[24];
-            char next_str[24];
-            snprintf(dest_str, sizeof(dest_str), MACSTR, MAC2STR(s_routing_table[i].destination));
-            snprintf(next_str, sizeof(next_str), MACSTR, MAC2STR(s_routing_table[i].next_hop));
-            printf("%-24s %-24s %-6u\n", dest_str, next_str, s_routing_table[i].hop_count);
-        }
-    }
-    printf("========================================\n\n");
-    xSemaphoreGive(s_routing_mutex);
+    // Routine debug table suppressed
 }
 
 bool routing_lookup(const uint8_t *dest_mac, uint8_t *out_next_hop, uint8_t *out_hop_count)
@@ -247,8 +229,7 @@ void topology_recalculate_routes(void)
         s_route_count = new_route_count;
         xSemaphoreGive(s_routing_mutex);
 
-        ESP_LOGI(TAG, "Routing table updated (total routes: %d)", s_route_count);
-        routing_print_table();
+        // Routing table updated (routine log suppressed)
     }
 }
 

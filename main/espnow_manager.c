@@ -121,7 +121,7 @@ esp_err_t espnow_manager_ensure_peer(const uint8_t *mac)
     peer.encrypt = false;
     esp_err_t ret = esp_now_add_peer(&peer);
     if (ret == ESP_OK) {
-        ESP_LOGI(TAG, "Peer registered: " MACSTR, MAC2STR(mac));
+        // Peer registered (routine log suppressed)
     } else if (ret != ESP_ERR_ESPNOW_EXIST) {
         ESP_LOGE(TAG, "esp_now_add_peer(" MACSTR ") failed: %s",
                  MAC2STR(mac), esp_err_to_name(ret));
@@ -136,7 +136,7 @@ esp_err_t espnow_manager_remove_peer(const uint8_t *mac)
     }
     esp_err_t ret = esp_now_del_peer(mac);
     if (ret == ESP_OK) {
-        ESP_LOGI(TAG, "Peer removed: " MACSTR, MAC2STR(mac));
+        // Peer removed (routine log suppressed)
     } else {
         ESP_LOGE(TAG, "esp_now_del_peer failed: %s", esp_err_to_name(ret));
     }

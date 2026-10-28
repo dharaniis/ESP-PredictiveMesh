@@ -19,8 +19,8 @@
 /* ================================================================
  * NODE ROLE SELECTION — enable exactly ONE
  * ================================================================ */
-// #define NODE_ROLE_A   1
-#define NODE_ROLE_B   1
+ #define NODE_ROLE_A   1
+//#define NODE_ROLE_B   1
 // #define NODE_ROLE_C   1
 /* ================================================================
  * Compile-time validation: exactly one role must be selected
@@ -72,9 +72,9 @@
  * NODE_B: accept neighbor only if RSSI >= -80 dBm
  * NODE_C: accept neighbor only if RSSI >= -60 dBm
  * ================================================================ */
-#define RSSI_THRESHOLD_NODE_A  -60
-#define RSSI_THRESHOLD_NODE_B  -80
-#define RSSI_THRESHOLD_NODE_C  -60
+#define RSSI_THRESHOLD_NODE_A  -100
+#define RSSI_THRESHOLD_NODE_B  -100
+#define RSSI_THRESHOLD_NODE_C  -100
 #if NODE_ROLE_A
 #define NODE_RSSI_THRESHOLD  RSSI_THRESHOLD_NODE_A
 #elif NODE_ROLE_B
@@ -94,10 +94,10 @@
 /* DATA generator interval (NODE_A only) */
 #define DATA_GENERATE_INTERVAL_MS  2000
 
-/* METRIC_PROBE_INTERVAL_MS = 1000 */
-#define METRIC_PROBE_INTERVAL_MS 1000
+/* METRIC_PROBE_INTERVAL_MS = 50 (20 probes per second) */
+#define METRIC_PROBE_INTERVAL_MS 50
 
-/* METRICS_WINDOW_MS = 5000 */
-#define METRICS_WINDOW_MS 5000
+/* METRICS_WINDOW_MS = 1000 (1 second window) */
+#define METRICS_WINDOW_MS 1000
 
 #endif /* NODE_CONFIG_H */

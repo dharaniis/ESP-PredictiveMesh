@@ -52,7 +52,7 @@ neighbor_t *neighbor_add_or_update(const uint8_t *mac)
     s_table[i].hello_sequence = 0;
     s_table[i].last_seen_us = 0;
     s_table[i].state = NEIGHBOR_ACTIVE;
-    ESP_LOGI(TAG, "Neighbor added: " MACSTR, MAC2STR(mac));
+    s_table[i].is_accepted = true;
     return &s_table[i];
 }
 
@@ -66,12 +66,9 @@ neighbor_t *neighbor_update_observation(const uint8_t *mac,
     n->last_seen_us = esp_timer_get_time();
     n->hello_sequence = hello_sequence;
     n->state = NEIGHBOR_ACTIVE;
-    bool accepted = (rssi >= NODE_RSSI_THRESHOLD);
-    n->is_accepted = accepted;
+    n->is_accepted = true;
 
-    ESP_LOGI(TAG, "Neighbor evaluation: MAC=" MACSTR ", RSSI=%d dBm, Threshold=%d dBm -> %s",
-             MAC2STR(mac), (int)rssi, NODE_RSSI_THRESHOLD,
-             accepted ? "ACCEPTED" : "REJECTED");
+    // Neighbor evaluated
     return n;
 }
 
@@ -86,12 +83,12 @@ int neighbor_expire(int64_t now_us, int64_t stale_us, int64_t dead_us,
             if (removed_count < max_removed) {
                 memcpy(removed_macs[removed_count], s_table[i].mac, ESP_NOW_ETH_ALEN);
             }
-            ESP_LOGI(TAG, "Neighbor expired: " MACSTR, MAC2STR(s_table[i].mac));
+            // Neighbor expired
             memset(&s_table[i], 0, sizeof(neighbor_t));
             removed_count++;
         } else if (age >= stale_us && s_table[i].state == NEIGHBOR_ACTIVE) {
             s_table[i].state = NEIGHBOR_STALE;
-            ESP_LOGW(TAG, "Neighbor stale: " MACSTR, MAC2STR(s_table[i].mac));
+            // Neighbor stale
         }
     }
     return removed_count;
@@ -126,32 +123,8 @@ int neighbor_count(void)
     return n;
 }
 
-static const char *state_name(neighbor_state_t s)
-{
-    switch (s) {
-    case NEIGHBOR_ACTIVE: return "ACTIVE";
-    case NEIGHBOR_STALE:  return "STALE ";
-    case NEIGHBOR_EMPTY:  return "EMPTY ";
-    default:              return "?";
-    }
-}
 
 void neighbor_print_table(void)
 {
-    ESP_LOGI(TAG, "--------------------------------------------");
-    ESP_LOGI(TAG, "Neighbor Table (%d active/stale)", neighbor_count());
-    ESP_LOGI(TAG, "--------------------------------------------");
-    ESP_LOGI(TAG, "MAC                  RSSI   Age(s)   State   Accepted");
-    for (int i = 0; i < MAX_NEIGHBORS; i++) {
-        if (s_table[i].state == NEIGHBOR_EMPTY) continue;
-        int64_t now = esp_timer_get_time();
-        double age_s = (double)(now - s_table[i].last_seen_us) / 1e6;
-        ESP_LOGI(TAG, MACSTR "  %4d   %5.2f   %s  %s",
-                 MAC2STR(s_table[i].mac),
-                 (int)s_table[i].rssi,
-                 age_s,
-                 state_name(s_table[i].state),
-                 s_table[i].is_accepted ? "YES" : "NO");
-    }
-    ESP_LOGI(TAG, "--------------------------------------------");
+    // Routine debug table suppressed
 }

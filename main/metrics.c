@@ -6,6 +6,7 @@
 #include "esp_now.h"
 #include "esp_timer.h"
 #include "esp_mac.h"
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
@@ -79,7 +80,7 @@ static void send_metric_probe(const uint8_t *dest_mac) {
     espnow_send_tag_t tag = { .pkt_type = ESPNOW_PKT_METRIC_PROBE, .sequence = pkt.u.metric_probe.sequence };
     memcpy(tag.dest_mac, dest_mac, ESP_NOW_ETH_ALEN);
     espnow_manager_send(dest_mac, &pkt, &tag);
-    printf("METRICS: PROBE TX neighbor = " MACSTR " seq = %" PRIu32 "\n", MAC2STR(dest_mac), pkt.u.metric_probe.sequence);
+    // Suppress routine debug log: send_metric_probe
 }
 
 void metrics_update(void) {
@@ -88,7 +89,6 @@ void metrics_update(void) {
     // 1. Maintain synchronization
     for (int i = 0; i < MAX_METRIC_ENTRIES; i++) {
         if (g_metrics[i].mac[0] != 0 && !neighbor_is_accepted(g_metrics[i].mac)) {
-            printf("METRICS: REMOVED neighbor = " MACSTR " reason = neighbor inactive/stale\n", MAC2STR(g_metrics[i].mac));
             memset(&g_metrics[i], 0, sizeof(link_metric_t));
         }
     }
@@ -102,7 +102,7 @@ void metrics_update(void) {
                 if (g_metrics[k].mac[0] == 0) {
                     memcpy(g_metrics[k].mac, macs[i], ESP_NOW_ETH_ALEN);
                     g_metrics[k].last_window_start_us = now;
-                    printf("METRICS: CREATED neighbor = " MACSTR " reason = neighbor accepted\n", MAC2STR(macs[i]));
+                    // Entry initialized for accepted neighbor
                     break;
                 }
             }
@@ -120,6 +120,18 @@ void metrics_update(void) {
                 if (g_metrics[i].window_rtt_count > 0) {
                     g_metrics[i].rtt_ms = ((double)g_metrics[i].window_rtt_sum_us / (double)g_metrics[i].window_rtt_count) / 1000.0;
                     g_metrics[i].has_valid_rtt = true;
+                }
+                
+                if (neighbor_is_accepted(g_metrics[i].mac) && g_metrics[i].has_valid_pdr && g_metrics[i].has_valid_rtt) {
+                    neighbor_t *nb = neighbor_find(g_metrics[i].mac);
+                    int8_t rssi = nb ? nb->rssi : g_metrics[i].last_rssi;
+                    int64_t timestamp_ms = now / 1000LL;
+                    printf("DATA,%" PRId64 "," MACSTR ",%d,%.3f,%d\n",
+                           timestamp_ms,
+                           MAC2STR(g_metrics[i].mac),
+                           rssi,
+                           g_metrics[i].pdr,
+                           (int)round(g_metrics[i].rtt_ms));
                 }
                 
                 // Reset window counters
@@ -184,39 +196,11 @@ void handle_metric_ack_packet(const espnow_evt_recv_t *evt) {
             m->window_rtt_sum_us += rtt_us;
             m->window_rtt_count++;
             
-            // Immediate display RTT update
-            double sample_rtt_ms = (double)rtt_us / 1000.0;
-            printf("METRICS: PROBE ACK neighbor = " MACSTR " seq = %" PRIu32 " RTT = %.1f ms\n",
-                   MAC2STR(p->source_mac), p->metric_sequence, sample_rtt_ms);
+            // RTT window accumulation
         }
     }
 }
 
 void metrics_print_table(void) {
-    printf("========================================\n");
-    printf("LINK METRICS\n");
-    printf("========================================\n");
-    printf("Neighbor                 RSSI     PDR     RTT\n");
-    for (int i = 0; i < MAX_METRIC_ENTRIES; i++) {
-        if (g_metrics[i].mac[0] != 0) {
-            char pdr_str[16];
-            char rtt_str[16];
-            
-            if (g_metrics[i].has_valid_pdr) {
-                snprintf(pdr_str, sizeof(pdr_str), "%.2f", g_metrics[i].pdr);
-            } else {
-                snprintf(pdr_str, sizeof(pdr_str), "N/A");
-            }
-            
-            if (g_metrics[i].has_valid_rtt) {
-                snprintf(rtt_str, sizeof(rtt_str), "%.1f ms", g_metrics[i].rtt_ms);
-            } else {
-                snprintf(rtt_str, sizeof(rtt_str), "N/A");
-            }
-            
-            printf(MACSTR "        %d      %-7s %s\n", 
-                   MAC2STR(g_metrics[i].mac), g_metrics[i].last_rssi, pdr_str, rtt_str);
-        }
-    }
-    printf("========================================\n");
+    // Routine debug table suppressed
 }

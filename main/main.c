@@ -31,13 +31,7 @@ static void espnow_dispatch_task(void *pvParameter)
 
         switch (evt.id) {
         case ESPNOW_EVT_SEND_DONE:
-            if (evt.u.send.status == ESP_NOW_SEND_SUCCESS) {
-                ESP_LOGI("MAIN", "Packet #%" PRIu32 " (type %d) send status: SUCCESS",
-                         evt.u.send.tag.sequence, evt.u.send.tag.pkt_type);
-            } else {
-                ESP_LOGW("MAIN", "Packet #%" PRIu32 " (type %d) send status: FAIL",
-                         evt.u.send.tag.sequence, evt.u.send.tag.pkt_type);
-            }
+            (void)evt.u.send;
             break;
 
         case ESPNOW_EVT_RECV:

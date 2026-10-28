@@ -96,20 +96,10 @@ static void forward_data(espnow_packet_t *pkt, const uint8_t *recv_from_mac)
 
     /* Look up route in dynamic routing table */
     bool has_route = routing_lookup(d->destination_mac, next_hop, &route_hops);
-    if (!has_route) {
-        ESP_LOGW(TAG, "ROUTE:\n"
-                      "  destination unreachable (" MACSTR ")",
-                 MAC2STR(d->destination_mac));
-        return;
-    }
+    if (!has_route) return;
 
     /* Verify next hop is an active accepted neighbor */
-    if (!neighbor_is_accepted(next_hop)) {
-        ESP_LOGW(TAG, "ROUTE:\n"
-                      "  next hop " MACSTR " is not an active/accepted neighbor",
-                 MAC2STR(next_hop));
-        return;
-    }
+    if (!neighbor_is_accepted(next_hop)) return;
 
     /* Ensure ESP-NOW peer is registered for next_hop */
     espnow_manager_ensure_peer(next_hop);
@@ -117,24 +107,8 @@ static void forward_data(espnow_packet_t *pkt, const uint8_t *recv_from_mac)
     uint8_t old_hop = d->hop_count;
     d->hop_count++;
 
-    ESP_LOGI(TAG, "DATA_RX:\n"
-                  "  received from : " MACSTR "\n"
-                  "  source        : " MACSTR "\n"
-                  "  destination   : " MACSTR "\n"
-                  "  hop_count     : %u",
-             MAC2STR(recv_from_mac), MAC2STR(d->source_mac),
-             MAC2STR(d->destination_mac), old_hop);
-
-    ESP_LOGI(TAG, "DATA_FORWARD:\n"
-                  "  destination   : " MACSTR "\n"
-                  "  next_hop      : " MACSTR "\n"
-                  "  hop_count     : %u -> %u",
-             MAC2STR(d->destination_mac), MAC2STR(next_hop),
-             old_hop, d->hop_count);
-
-    ESP_LOGI(TAG, "DATA_SEND:\n"
-                  "  sending to    : " MACSTR,
-             MAC2STR(next_hop));
+    (void)recv_from_mac;
+    (void)old_hop;
 
     espnow_send_tag_t tag = {
         .pkt_type = ESPNOW_PKT_DATA,
@@ -161,8 +135,7 @@ void forwarding_handle_data(const espnow_evt_recv_t *evt)
 
     /* Duplicate detection — check BEFORE processing */
     if (is_duplicate(d->source_mac, d->sequence)) {
-        ESP_LOGW(TAG, "Duplicate DATA dropped (src=" MACSTR " seq=%" PRIu32 ")",
-                 MAC2STR(d->source_mac), d->sequence);
+        // Duplicate DATA dropped (routine log suppressed)
         return;
     }
     mark_seen(d->source_mac, d->sequence);
@@ -172,17 +145,8 @@ void forwarding_handle_data(const espnow_evt_recv_t *evt)
     /* Destination check */
     if (memcmp(d->destination_mac, local, ESP_NOW_ETH_ALEN) == 0) {
         /* Local delivery */
-        ESP_LOGI(TAG, "DATA_RX:\n"
-                      "  received from : " MACSTR "\n"
-                      "  source        : " MACSTR "\n"
-                      "  destination   : " MACSTR "\n"
-                      "  hop_count     : %u",
-                 MAC2STR(evt->src_mac), MAC2STR(d->source_mac),
-                 MAC2STR(d->destination_mac), d->hop_count);
-        ESP_LOGI(TAG, "DATA_DELIVER:\n"
-                      "  local destination reached\n"
-                      "  payload       : %.*s",
-                 (int)sizeof(d->payload), d->payload);
+        (void)d;
+        (void)evt;
         return;
     }
 
@@ -208,7 +172,7 @@ bool forwarding_validate_role(void)
     ESP_LOGI(TAG, "Local MAC: " MACSTR, MAC2STR(local));
     ESP_LOGI(TAG, "Expected MAC: " MACSTR, MAC2STR(expected));
     ESP_LOGI(TAG, "Role/MAC: %s", valid ? "VALID" : "*** INVALID ***");
-    ESP_LOGI(TAG, "RSSI threshold: %d dBm", NODE_RSSI_THRESHOLD);
+    ESP_LOGI(TAG, "RSSI threshold: NONE (unfiltered)");
     ESP_LOGI(TAG, "========================================");
 
     if (!valid) {
@@ -244,17 +208,13 @@ static void data_generator_task(void *arg)
         /* Dynamic routing lookup for destination */
         bool has_route = routing_lookup(dest, next_hop, &route_hops);
         if (!has_route) {
-            ESP_LOGW(TAG, "ROUTE:\n"
-                          "  destination unreachable (" MACSTR ")",
-                     MAC2STR(dest));
+            // Destination unreachable (routine log suppressed)
             continue;
         }
 
         /* Check next hop is active and accepted */
         if (!neighbor_is_accepted(next_hop)) {
-            ESP_LOGW(TAG, "ROUTE:\n"
-                          "  next hop " MACSTR " is not active/accepted; skipping DATA #%" PRIu32,
-                     MAC2STR(next_hop), s_data_sequence);
+            // Next hop not accepted (routine log suppressed)
             continue;
         }
 
@@ -277,15 +237,7 @@ static void data_generator_task(void *arg)
         /* Mark as seen */
         mark_seen(local, s_data_sequence);
 
-        ESP_LOGI(TAG, "DATA_ROUTE:\n"
-                      "  destination   : " MACSTR "\n"
-                      "  next_hop      : " MACSTR "\n"
-                      "  hop_count     : 0",
-                 MAC2STR(dest), MAC2STR(next_hop));
-
-        ESP_LOGI(TAG, "DATA_SEND:\n"
-                      "  sending to    : " MACSTR,
-                 MAC2STR(next_hop));
+        // Routine DATA send logs suppressed
 
         espnow_send_tag_t tag = {
             .pkt_type = ESPNOW_PKT_DATA,

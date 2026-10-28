@@ -154,11 +154,7 @@ static void discovery_task(void *arg)
             topology_recalculate_routes();
         }
 
-        // 3. Print table periodically.
-        neighbor_print_table();
         metrics_update();
-        metrics_print_table();
-        routing_print_table();
 
         vTaskDelay(pdMS_TO_TICKS(DISCOVERY_INTERVAL_MS));
     }
